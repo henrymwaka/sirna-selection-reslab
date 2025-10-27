@@ -1,243 +1,243 @@
-<HTML>
-<HEAD>
-<TITLE>WI siRNA Selection Program</TITLE>
-<SCRIPT language=JAVASCRIPT src="siRNAhelp.js"></SCRIPT>
-
-
-</HEAD>
-
-<img src="keep/header_wi_01.jpg" />
-
-<center>
-
 <?php
+/**
+ * home.php — secure + legacy compatible version
+ * - Supports reCAPTCHA v2 Checkbox
+ * - Safe CSP (no blocked:csp)
+ * - Hashed passwords (fallback to plaintext)
+ * - CSRF & session protection
+ */
 
-extract($_POST);
-extract($_GET);
+declare(strict_types=1);
+error_reporting(E_ALL);
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
 
-//
-// Initial Login
-//
+// ------------------------- CONFIG -------------------------------------------
+$CONFIG = [
+  'recaptcha_site_key' => '6Le32fcrAAAAAJGC1MokNfvhkn8RRHpMB55-S2ja',
+  'recaptcha_secret'   => '6Le32fcrAAAAAHEsMPsi6UBL0fsqlwaRFkEBpmcH',
+  'db' => [
+    'host' => 'localhost',
+    'user' => 'sirna_user',
+    'pass' => 'sirna_pass',
+    'name' => 'sirna',
+    'charset' => 'utf8mb4',
+  ],
+  'logfile' => __DIR__ . '/logs/login_audit.log',
+  'daily_limit' => 25,
+  'usage_tz' => 'America/New_York',
+  'force_https' => false,
+];
 
-if (! isset($login))
-{
-	//
-	// Login Form and Sponsorship Panel
-	//
-
-	print "<table width=\"100%\">\n";
-
-	print "<tr>\n";
-
-		// Javascript Menu Bar
-		print "<td width=\"20%\" align=\"left\">\n";
-
-print <<<END
-
-                <br />
-                <!-- <table align="center" border=1 cellspacing=1 bgcolor="#92C5F8"> -->
-                <table align="center" border=0 cellspacing=1 bgcolor="#FFFFFF">
-                <!-- <tr><td align="center" width=80><a class="internal" href="javascript:help('./keep/news.html')"><font face=arial color=08437E><img src="keep/news.gif" border=0 /></font></a></td>
-                </tr> -->
-		<tr><td align="center" width=80><a class="internal" href="javascript:help('./keep/about.html')"><font face=arial color=08437E><img src="keep/about.gif" border=0 /></font></a></td>
-                </tr>
-		<tr><td align="center" width=80><a class="internal" href="javascript:help('./keep/FAQ.html')"><font face=arial color=08437E><img src="keep/faq.gif" border=0 /></font></a></td>
-                </tr>
-		<tr><td align="center" width=80><a class="internal" href="javascript:help('./keep/example.html')"><font face=arial color=08437E><img src="keep/example.gif" border=0 /></font></a></td>
-                </tr>
-		<tr><td align="center" width=80><a class="internal" href="javascript:help('./keep/compatibility.html')"><font face=arial color=08437E><img src="keep/compatibility.gif" border=0 /></font></a></td>
-                </tr>
-		<tr><td align="center" width=80><a class="internal" href="javascript:help('./keep/disclaimer.html')"><font face=arial color=08437E><img src="keep/disclaimer.gif" border=0 /></font></a></td>
-                </tr>
-		<tr><td align="center" width=80><a class="internal" href="javascript:help('./keep/acknowledgements.html')"><font face=arial color=08437E><img src="keep/acknowledgements.gif" border=0 /></font></a></td>
-		</tr>
-             
-
-                <tr>
-                    <td><p /></td>
-                </tr>
-                <tr>
-                    <td><p /></td>
-                </tr>
-
-     </table>
-
-
-END;
-
-		print "</td>\n";
-
-		// Logo and login table
-		print "<td width=\"50%\" align=\"center\">\n";
-		print "<img src=\"keep/animation.gif\" height=\"300\"><br><br>\n";
-
-        print "<form method=\"POST\" action=\"home.php\">\n";
-
-		print "<table>\n";
-
-        print "<tr>\n";
-			print "<td align=\"right\"><font face=\"arial\" color=\"000000\"> Enter your login:  </font><input type=\"text\" name=\"login\" size=\"15\" value=\"\" maxlength=\"25\"></td>\n";
-		print "</tr>\n";
-
-        print "<tr>\n";
-			print "<td  align=\"right\"><font face=\"arial\" color=\"000000\">Enter your password: </font><input type=\"password\" name=\"password\" size=\"15\" value=\"\" maxlength=\"25\"></td>\n";
-		print "</tr>\n";
-
-		print "<tr>\n";
-			print "<td align=\"right\"><input type=\"submit\" value=\"Login\"></td>\n";
-		print "</tr>\n";
-
-		print "<tr>\n";
-			print "<td align=\"center\"><a class=\"internal\" href=\"register.php\"><font face=\"arial\" color=\"08437E\">REGISTRATION</font></a><br><br></td>\n";
-		print "</tr>\n";
-
-		print "</tr>\n";
-			print "<td><a class=\"internal\" href=\"reference.php\"><font face=\"arial\" color=\"08437E\">How To Reference siRNA Selection Program</font></a></td>\n";
-		print "</tr>\n";
-
-		print "</table>\n";
-
-		// annocements
-		//print '<h2>The siRNA selection program will be down on Tuesday June 18th, 2024 due to some maintenance work. <br>
-
-		print "<h3>This website is no longer being maintained nor updated except for the BLAST databases.</h3><br>";
-		print "</form>\n";
-		print "</td>\n";
-		print "<td> &nbsp</td>\n";
-
-		print "</td>\n";
-	print "</tr>\n";
-
-	print "</table>\n";
-
-	//
-	// Javascript Menus
-	//
-
-print <<<END
-
-		<br>
-
-
-		<br>
-
-		<p><font face="arial" color="000000" size="2">Copyright 2004 Whitehead Institute for Biomedical Research. All rights
-		reserved.<br>Comments and suggestions to: <img src='./keep/contact.jpg'></font>
-END;
-
+// ------------------------- SECURITY HEADERS ---------------------------------
+if ($CONFIG['force_https'] && (!isset($_SERVER['HTTPS']) || $_SERVER['HTTPS'] !== 'on')) {
+  header('Location: https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'], true, 301);
+  exit;
 }
-else
-{
+header("X-Content-Type-Options: nosniff");
+header("X-Frame-Options: SAMEORIGIN");
+header("Referrer-Policy: strict-origin-when-cross-origin");
+/*
+ * ✅ FIXED CSP — allows Google reCAPTCHA + fonts + blob inline scripts.
+ */
+header("Content-Security-Policy: "
+ . "default-src 'self' https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://fonts.googleapis.com https://fonts.gstatic.com blob:; "
+ . "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.google.com https://www.gstatic.com https://www.recaptcha.net blob:; "
+ . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+ . "font-src 'self' https://fonts.gstatic.com data:; "
+ . "img-src 'self' data: https://www.google.com https://www.gstatic.com; "
+);
 
-	$link = mysqli_connect("mysqlHost","mysqlLogin","mysqlPassword") or die("Cannot CONNECT");
-	$mysqli = mysqli_select_db($link, "sirna") or die("Cannot SELECT_DB");
-	#$q = "SELECT * FROM accounts, permissions WHERE accounts.login =\"$login\" and accounts.password=\"$password\" AND accounts.pId=permissions.pId AND permissions.permit=1";
-	$LoginQuery =  mysqli_query( $link, "SELECT * FROM accounts, permissions WHERE accounts.login =\"$login\" and accounts.password=\"$password\" AND accounts.pId=permissions.pId AND permissions.permit=1") or die("Cannot SELECT account 1");
-	
-	// Check for correct login and password
-
-	if ($row = mysqli_fetch_array ($LoginQuery, MYSQLI_ASSOC))
-	{
-		$pId = $row["pId"];
-		$CountsQuery = mysqli_query($link, "SELECT * FROM counts WHERE pId=$pId") or die("Cannot SELECT count 2");
-
-		while($row3 = mysqli_fetch_array ($CountsQuery, MYSQLI_ASSOC))
-		{
-                        date_default_timezone_set("America/New_York");
-                        
-			// Check for number of daily usages
-			$today = getdate();
-	                $day = $today["mday"] + 0;
-                        $month = $today["mon"] + 0;
-       		        $year = $today["year"] + 0;
-
-                        
-			if ($row3["day"] != $day || $row3["month"] != $month || $row3["year"] != $year)
-			{
-				$CountDel = mysqli_query($link, "UPDATE counts SET count=0, day=$day, month=$month, year = $year WHERE pId=$pId") or die("Cannot Update counts");
-			}
-		}
-
-                # person with special permission: no limit on usage
-		$pattern2 =  "VIP\.xxx\.edu";
-		$pattern3 =  "developer\.xxx\.edu";
-		$email = "";
-		$SponsorQuery  = mysqli_query($link, "SELECT email FROM emails WHERE pId=$pId") or die("Cannot SELECT FROM emails");
-		while ($row_sponsor = mysqli_fetch_array ($SponsorQuery, MYSQLI_ASSOC))
-		{
-			$email = strtolower($row_sponsor["email"]);
-		}
-
-
-		$CountsQuery2 = mysqli_query($link, "SELECT * FROM counts WHERE pId=$pId") or die("Cannot SELECT count");
-
-		while($row2 = mysqli_fetch_array ($CountsQuery2, MYSQLI_ASSOC))
-		{
-			// Check for number of daily usages
-			if ($row2["count"] <  25 || eregi($pattern3,$email) || eregi($pattern2,$email) )
-			{
-
-				srand((double)microtime() * 1000000);
-				$rId = rand();
-
-				$ip = $_SERVER["REMOTE_ADDR"];
-
-				$PidQuery = mysqli_query($link, "SELECT pId FROM logins WHERE pId=$pId") or die("Cannot SELECT logins");
-
-				// Check for prior login
-
-				if ($row3 = mysqli_fetch_array ($PidQuery, MYSQLI_ASSOC))
-				{
-					$LoginsUpdate = mysqli_query($link, "UPDATE logins SET rId=$rId, ip=\"$ip\" WHERE pId=$pId") or die("Cannot UPDATE logins");
-				}
-				else
-				{
-					$LoginsInsert = mysqli_query($link, "INSERT INTO logins VALUES($pId, $rId, \"$ip\")") or die("Cannot INSERT logins");
-				}
-
-				// Check for prior authentication
-
-				if($row["authenticate"] == 0)
-				{
-					print "<META HTTP-EQUIV=\"REFRESH\" CONTENT=\"0;URL=authenticate.php?tasto=$rId \">\n";
-				}
-				else
-				{
-					print "<META HTTP-EQUIV=\"REFRESH\" CONTENT=\"0;URL=siRNA_search.cgi?tasto=$rId \">\n";
-				}
-			}
-			else
-			{
-				print "<font face=\"arial\" size\"2\">You have exceeded the daily usage limit. Please Login Again Tomorrow</font>";
-
-				print "<META HTTP-EQUIV=\"REFRESH\" CONTENT=\"2;URL=home.php\">\n";
-			}
-		}
-	}
-	else
-	{
-		print "<table>\n";
-
-		print "<tr>\n";
-			print "<td><font face=\"arial\" color=\"000000\">Login Failed</font></td>\n";
-		print "</tr>\n";
-
-		print "</table>";
-
-		print "<META HTTP-EQUIV=\"REFRESH\" CONTENT=\"0;URL=home.php\">\n";
-	}
+// ------------------------- LOGGING ------------------------------------------
+function log_event(string $msg): void {
+  global $CONFIG;
+  $file = $CONFIG['logfile'];
+  if (!is_dir(dirname($file))) @mkdir(dirname($file), 0775, true);
+  $ts = date('Y-m-d H:i:s');
+  $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+  @file_put_contents($file, "[$ts][$ip] $msg\n", FILE_APPEND);
 }
 
+// ------------------------- SESSION / CSRF -----------------------------------
+session_set_cookie_params([
+  'lifetime' => 0,
+  'path' => '/',
+  'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
+  'httponly' => true,
+  'samesite' => 'Lax',
+]);
+if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
-?>
+// ------------------------- DB CONNECTION ------------------------------------
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+function db(): mysqli {
+  static $conn = null;
+  if ($conn instanceof mysqli) return $conn;
+  global $CONFIG;
+  $db = $CONFIG['db'];
+  $conn = new mysqli($db['host'], $db['user'], $db['pass'], $db['name']);
+  $conn->set_charset($db['charset']);
+  return $conn;
+}
 
+// ------------------------- HELPERS ------------------------------------------
+function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
+
+function verify_recaptcha(string $token): bool {
+  global $CONFIG;
+  $post = http_build_query([
+    'secret'   => $CONFIG['recaptcha_secret'],
+    'response' => $token,
+    'remoteip' => $_SERVER['REMOTE_ADDR'] ?? null,
+  ]);
+  $ctx = stream_context_create(['http' => [
+    'method' => 'POST',
+    'header' => "Content-type: application/x-www-form-urlencoded\r\n",
+    'content' => $post,
+    'timeout' => 10,
+  ]]);
+  $resp = @file_get_contents('https://www.google.com/recaptcha/api/siteverify', false, $ctx);
+  if (!$resp) { log_event('reCAPTCHA HTTP failure'); return false; }
+  $data = json_decode($resp, true);
+  if (empty($data['success'])) {
+    log_event('reCAPTCHA failed: ' . json_encode($data['error-codes'] ?? []));
+    return false;
+  }
+  return true;
+}
+
+function today_parts_ny(): array {
+  global $CONFIG;
+  $tz = new DateTimeZone($CONFIG['usage_tz']);
+  $now = new DateTime('now', $tz);
+  return [(int)$now->format('j'), (int)$now->format('n'), (int)$now->format('Y')];
+}
+
+function generate_tasto(): string { return bin2hex(random_bytes(8)); }
+
+// ------------------------- RENDER LOGIN -------------------------------------
+function render_form(string $feedbackHTML = ''): void {
+  global $CONFIG;
+  $siteKey = $CONFIG['recaptcha_site_key'];
+  $csrf = $_SESSION['csrf_token'] ?? '';
+  echo <<<HTML
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>WI siRNA Selection Program</title>
+  <script src="siRNAhelp.js"></script>
+  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+  <style>
+    body { font-family: Arial, sans-serif; }
+    .feedback { margin-top: 10px; }
+    input[type="submit"] {
+      background-color: #0066cc; color: white; border: none; border-radius: 4px;
+      padding: 6px 12px; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+<img src="keep/header_wi_01.jpg" />
+<center>
+  <table width="100%"><tr>
+    <td width="20%" align="left">
+      <table align="center" border="0" cellspacing="1" bgcolor="#FFFFFF">
+        <tr><td align="center"><a href="javascript:help('./keep/about.html')"><img src="keep/about.gif" border="0"></a></td></tr>
+        <tr><td align="center"><a href="javascript:help('./keep/FAQ.html')"><img src="keep/faq.gif" border="0"></a></td></tr>
+        <tr><td align="center"><a href="javascript:help('./keep/example.html')"><img src="keep/example.gif" border="0"></a></td></tr>
+        <tr><td align="center"><a href="javascript:help('./keep/compatibility.html')"><img src="keep/compatibility.gif" border="0"></a></td></tr>
+        <tr><td align="center"><a href="javascript:help('./keep/disclaimer.html')"><img src="keep/disclaimer.gif" border="0"></a></td></tr>
+        <tr><td align="center"><a href="javascript:help('./keep/acknowledgements.html')"><img src="keep/acknowledgements.gif" border="0"></a></td></tr>
+      </table>
+    </td>
+    <td width="50%" align="center">
+      <img src="keep/animation.gif" height="300"><br><br>
+      <form id="loginForm" method="POST" action="home.php" autocomplete="off">
+        <input type="hidden" name="csrf_token" value="$csrf">
+        <table>
+          <tr><td align="right">Enter your login: <input type="text" name="login" size="15" maxlength="64" required></td></tr>
+          <tr><td align="right">Enter your password: <input type="password" name="password" size="15" maxlength="128" required></td></tr>
+          <tr><td align="center" style="padding-top:8px;"><div class="g-recaptcha" data-sitekey="$siteKey"></div></td></tr>
+          <tr><td align="right" style="padding-top:8px;"><input type="submit" value="Login"></td></tr>
+        </table>
+      </form>
+      <div id="feedback" class="feedback">$feedbackHTML</div>
+      <br>
+      <a href="register.php"><font color="08437E">REGISTRATION</font></a><br>
+      <a href="reference.php"><font color="08437E">How To Reference siRNA Selection Program</font></a>
+      <h4>This website is no longer being maintained except for the BLAST databases.</h4>
+    </td>
+  </tr></table>
+  <br><font size="2">Copyright 2004 Whitehead Institute for Biomedical Research. All rights reserved.<br>Comments and suggestions to: <img src="./keep/contact.jpg"></font>
 </center>
+</body>
+</html>
+HTML;
+}
 
+// ------------------------- REQUEST LOGIC ------------------------------------
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') { render_form(); exit; }
 
-	</td>
-</tr>
-</table>
-</div>
-</div>
-</BODY>
-</HTML>
+try {
+  $csrf_ok = isset($_POST['csrf_token'], $_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], (string)$_POST['csrf_token']);
+  if (!$csrf_ok) { log_event('CSRF token mismatch'); render_form("<div style='color:red;'>Session expired. Please try again.</div>"); exit; }
+
+  $login = trim($_POST['login'] ?? '');
+  $password = trim($_POST['password'] ?? '');
+  $rec_tok = $_POST['g-recaptcha-response'] ?? '';
+
+  if ($login === '' || $password === '') { render_form("<div style='color:red;'>Login and password are required.</div>"); exit; }
+  if ($rec_tok === '' || !verify_recaptcha($rec_tok)) { render_form("<div style='color:red;'>reCAPTCHA verification failed. Please try again.</div>"); exit; }
+
+  $conn = db();
+  $stmt = $conn->prepare("SELECT a.pId, a.password AS pass_db, p.permit, p.authenticate FROM accounts a JOIN permissions p ON a.pId=p.pId WHERE a.login=? AND p.permit=1 LIMIT 1");
+  $stmt->bind_param('s', $login);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  if ($res->num_rows === 0) { log_event("FAILED login (no account) for '$login'"); render_form("<div style='color:red;'>Login failed.</div>"); exit; }
+  $r = $res->fetch_assoc();
+  $pId = (int)$r['pId']; $pass_db = (string)$r['pass_db']; $authenticate = (int)$r['authenticate'];
+
+  $ok = false;
+  if (preg_match('/^\$2[aby]\$|^\$argon2/', $pass_db)) $ok = password_verify($password, $pass_db);
+  else $ok = hash_equals($pass_db, $password);
+
+  if (!$ok) { log_event("FAILED password for '$login'"); render_form("<div style='color:red;'>Login failed. Please check your credentials.</div>"); exit; }
+
+  date_default_timezone_set($CONFIG['usage_tz']);
+  [$day, $month, $year] = today_parts_ny();
+  $conn->begin_transaction();
+  $stmt = $conn->prepare("SELECT count,day,month,year FROM counts WHERE pId=? FOR UPDATE");
+  $stmt->bind_param('i', $pId); $stmt->execute(); $counts=$stmt->get_result();
+  if ($counts->num_rows===0){
+    $stmt=$conn->prepare("INSERT INTO counts(pId,count,day,month,year)VALUES(?,?,?,?,?)");
+    $z=0;$stmt->bind_param('iiiii',$pId,$z,$day,$month,$year);$stmt->execute();
+    $cCount=0;
+  }else{
+    $c=$counts->fetch_assoc();
+    if($c['day']!=$day||$c['month']!=$month||$c['year']!=$year){
+      $stmt=$conn->prepare("UPDATE counts SET count=0,day=?,month=?,year=? WHERE pId=?");
+      $stmt->bind_param('iiii',$day,$month,$year,$pId);$stmt->execute();$cCount=0;
+    } else $cCount=(int)$c['count'];
+  }
+  if ($cCount >= $CONFIG['daily_limit']) { $conn->commit(); render_form("<div style='color:red;'>You have exceeded the daily usage limit.</div>"); exit; }
+
+  $tasto = generate_tasto(); $ip=$_SERVER['REMOTE_ADDR']??'';
+  $stmt=$conn->prepare("REPLACE INTO logins(pId,rId,ip) VALUES(?,?,?)");
+  $stmt->bind_param('iss',$pId,$tasto,$ip);$stmt->execute();$conn->commit();
+
+  $_SESSION['pId']=$pId;$_SESSION['login']=$login;$_SESSION['tasto']=$tasto;
+  log_event("SUCCESS login for '$login'");
+
+  if ($authenticate===0) echo "<div class='feedback' style='color:green;'>Login OK. Redirecting…</div><meta http-equiv='refresh' content='1;url=authenticate.php?tasto=".h($tasto)."'>";
+  else echo "<div class='feedback' style='color:green;'>Login successful. Redirecting…</div><meta http-equiv='refresh' content='1;url=siRNA_search.cgi?tasto=".h($tasto)."'>";
+  exit;
+
+} catch (Throwable $e) {
+  log_event('EXCEPTION: '.$e->getMessage());
+  render_form("<div style='color:red;'>System error. Please contact admin.</div>");
+  exit;
+}
+?>

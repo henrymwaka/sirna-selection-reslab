@@ -16,7 +16,7 @@ umask 000;
 use Log::Log4perl; 
 use strict;
 
-Log::Log4perl->init("siRNA_log.conf");
+Log::Log4perl->init('/home/shaykins/Projects/siRNA/www/siRNA_log.conf');
 $Log::Log4perl::caller_depth = 1;
 my $logger = Log::Log4perl->get_logger("SiRNA");
  

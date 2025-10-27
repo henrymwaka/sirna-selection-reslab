@@ -1,0 +1,41 @@
+
+---
+
+## ✅ 6. `.gitignore`
+```gitignore
+# Sensitive / Environment
+config/
+config.php
+.env
+*.key
+*.pem
+*.crt
+*.csr
+*.conf
+*.cnf
+
+# Logs / Runtime
+logs/
+www/logs/
+*.log
+*.tmp
+*.bak
+*.old
+
+# System / Editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+~$*
+
+# Build / Vendor
+vendor/
+composer.lock
+node_modules/
+dist/
+.cache/
+
+# Private Docs
+SECURITY_NOTES_INTERNAL.md
+DEPLOY_RUNBOOK.md

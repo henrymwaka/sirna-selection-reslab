@@ -1,4 +1,8 @@
-#!/usr/local/bin/perl
+#!/usr/bin/perl
+use FindBin qw($Bin);
+use lib "$Bin/lib";
+use lib "/home/shaykins/Projects/siRNA/config";   # ← ADD THIS LINE
+use lib "$Bin";
 
 # ###! /usr/bin/perl -w -I/var/www/siRNAext
 

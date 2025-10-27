@@ -31,9 +31,9 @@ EOF
 }
 
 my $DataBaseName = "sirna";
-my $hostname = "mysqlHost";
-my $DBUser = "mysqlLogin";
-my $DBPassword = "mysqlPassword";
+my $hostname = "localhost";
+my $DBUser = "sirna_user";
+my $DBPassword = "sirna_pass";
 
 ###Check if UserSession is valid, return 0 if invalid, otherwise return 1
 
