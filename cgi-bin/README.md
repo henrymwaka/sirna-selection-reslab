@@ -1,71 +1,270 @@
-# cgi-bin directory from siRNA selection program (Whitehead Institute)
+# siRNA Selection Program — `cgi-bin` Directory
 
-#### Make /cgi-bin/siRNAext directory, and copy all files below it. 
+This directory contains the core CGI scripts and backend utilities for the **siRNA Selection Program** originally developed at the Whitehead Institute for Biomedical Research.
 
-#### Selected contents that may need configuration, by directory:
+It has been adapted for deployment under:
 
-### /cgi-bin/lib/ - location of scripts to run analyses (which can be changed to match your path)
+```
+/home/shaykins/Projects/siRNA/cgi-bin/
+```
 
+---
 
-Database.pm:
+## 🧩 Directory Overview
 
-	$host = 'mysqlHost';
-	
-	$DBUser = 'mysqlLogin';
-	
-	$DBPassword = 'mysqlPassword';
+### **1. `lib/`**
 
-siRNA_env.pm
-	
+Contains the Perl modules and utility scripts used throughout the siRNA system.
 
-siRNA_log.conf:
+#### Files requiring configuration
 
-	log4j.appender.FILE.filename=/www/siRNAext/tmp/siRNA.log
+**`Database.pm`**
 
-siRNA_step2.cgi:
+```perl
+$host       = 'localhost';       # MySQL host
+$DBUser     = 'your_mysql_user';
+$DBPassword = 'your_mysql_password';
+```
 
-	! /usr/bin/perl -w -I/cgi-bin/siRNAext/lib/
+**`siRNA_env.pm`**
+Defines key environment paths. Update to match your local installation:
 
-	chdir "yourPath/siRNAext/lib";
-	
-	# replace admin\@domain.com
+```perl
+our $MyClusterLib   = '/home/shaykins/Projects/siRNA/cgi-bin/lib';
+our $MyBlastDataDir = '/home/shaykins/Projects/siRNA/cgi-bin/db';
+our $Home           = '/home/shaykins/Projects/siRNA/www/tmp';
+```
 
-	From: admin\@domain.com
-	
-	Reply-To: admin\@domain.com
-	
-siRNA_util.pm:
+**`siRNA_log.conf`**
 
-	mailto:admin\@domain.com\
-	
-	
-### /cgi-bin/db  - BLAST formatted sequence databases plus files for calculating thermodynamic values
+```ini
+log4j.appender.FILE.filename=/home/shaykins/Projects/siRNA/www/logs/siRNA.log
+```
 
+**`siRNA_step2.cgi`**
 
-Due to the size limitation, only the top 10 lines of fasta sequences are stored in the files.
+```perl
+#!/usr/bin/perl -w
+use lib '/home/shaykins/Projects/siRNA/cgi-bin/lib';
+chdir '/home/shaykins/Projects/siRNA/cgi-bin/lib';
+# Update contact details
+From: admin@reslab.dev
+Reply-To: admin@reslab.dev
+```
 
-You can download full sets from the public databases with the scripts under bin folder:
+**`siRNA_util.pm`**
 
-  REFSEQ,  ENSEMBL for human, mouse and rat sequence data
+```perl
+mailto:admin@reslab.dev
+```
 
-  Modify for your environment the following scripts to generate blastable files:
+---
 
-  download_refseq.sh: download RefSeq sequences
+### **2. `db/`**
 
-  download_ensembl.sh: download and format Ensembl sequences
-  
+Contains BLAST-formatted nucleotide databases and thermodynamic parameter files.
 
+Due to space limits, this repository includes only truncated FASTA examples (top 10 lines).
+Full reference datasets can be fetched from public sources.
 
-### /cgi-bin/mysqldb -files for mysql databases
+#### Update scripts
 
-You can create databases by loading .sql files using the following command:
+Located under:
 
-	mysql -u username -p < /path/to/your_file.sql
- 
-**.sql Files:**
+```
+/home/shaykins/Projects/siRNA/cgi-bin/db/bin/
+```
 
-entrez_gene.sql: Creates the entrez_gene database. This file can be downloaded from NCBI's FTP site: ftp://ftp.ncbi.nlm.nih.gov/gene
+* **`download_refseq.sh`** — Downloads RefSeq nucleotide sequences and builds BLAST databases.
+* **`download_ensemble.sh`** — Downloads and formats Ensembl human, mouse, and rat cDNA datasets for BLAST.
 
-sirna.sql: Defines MySQL structure for the sirna user database, which you can create by loading this file.
+Each script automatically:
 
-sirna2.sql: Provides MySQL definitions for the xref database, linking geneId with isoforms. This file is used to create the sirna2 database.
+* Retrieves data via FTP from NCBI or Ensembl.
+* Normalizes FASTA headers.
+* Formats BLAST databases using `makeblastdb`.
+* Logs progress to `/home/shaykins/Projects/siRNA/www/logs/ensembl_update.log`.
+
+**Sample command:**
+
+```bash
+bash /home/shaykins/Projects/siRNA/cgi-bin/db/bin/download_ensemble.sh
+```
+
+---
+
+### **3. `mysqldb/`**
+
+Contains `.sql` definitions for initializing MySQL databases used by the siRNA application.
+
+To create these databases:
+
+```bash
+mysql -u your_user -p < /home/shaykins/Projects/siRNA/cgi-bin/mysqldb/sirna.sql
+```
+
+#### Files
+
+* **`entrez_gene.sql`** — Schema for the `entrez_gene` database (downloadable from NCBI: `ftp://ftp.ncbi.nlm.nih.gov/gene`)
+* **`sirna.sql`** — Schema for the main siRNA user database.
+* **`sirna2.sql`** — Schema for the `xref` database linking gene IDs with transcript isoforms.
+
+---
+
+## ⚙️ Deployment Notes
+
+1. Ensure **fcgiwrap** and **Nginx** are correctly configured to serve CGI scripts.
+2. Make the following directories writable by the web server (`www-data`):
+
+   ```bash
+   sudo chown -R www-data:www-data /home/shaykins/Projects/siRNA/www/tmp
+   sudo chown -R www-data:www-data /home/shaykins/Projects/siRNA/www/logs
+   ```
+3. Confirm that environment variables in `siRNA_env.pm` point to the current project root.
+4. Verify BLAST executables (e.g., `makeblastdb`) are installed and available in `/usr/bin` or `/usr/local/bin`.
+
+---
+
+# siRNA Selection Program — `cgi-bin` Directory
+
+This directory contains the core CGI scripts and backend utilities for the **siRNA Selection Program** originally developed at the Whitehead Institute for Biomedical Research.
+
+It has been adapted for deployment under:
+
+```
+/home/shaykins/Projects/siRNA/cgi-bin/
+```
+
+---
+
+## 🧩 Directory Overview
+
+### **1. `lib/`**
+Contains the Perl modules and utility scripts used throughout the siRNA system.
+
+#### Files requiring configuration
+
+**`Database.pm`**
+```perl
+$host       = 'localhost';       # MySQL host
+$DBUser     = 'your_mysql_user';
+$DBPassword = 'your_mysql_password';
+```
+
+**`siRNA_env.pm`**
+Defines key environment paths. Update to match your local installation:
+
+```perl
+our $MyClusterLib   = '/home/shaykins/Projects/siRNA/cgi-bin/lib';
+our $MyBlastDataDir = '/home/shaykins/Projects/siRNA/cgi-bin/db';
+our $Home           = '/home/shaykins/Projects/siRNA/www/tmp';
+```
+
+**`siRNA_log.conf`**
+```ini
+log4j.appender.FILE.filename=/home/shaykins/Projects/siRNA/www/logs/siRNA.log
+```
+
+**`siRNA_step2.cgi`**
+```perl
+#!/usr/bin/perl -w
+use lib '/home/shaykins/Projects/siRNA/cgi-bin/lib';
+chdir '/home/shaykins/Projects/siRNA/cgi-bin/lib';
+# Update contact details
+From: admin@reslab.dev
+Reply-To: admin@reslab.dev
+```
+
+**`siRNA_util.pm`**
+```perl
+mailto:admin@reslab.dev
+```
+
+---
+
+### **2. `db/`**
+Contains BLAST-formatted nucleotide databases and thermodynamic parameter files.
+
+Due to space limits, this repository includes only truncated FASTA examples (top 10 lines).  
+Full reference datasets can be fetched from public sources.
+
+#### Update scripts
+
+Located under:
+```
+/home/shaykins/Projects/siRNA/cgi-bin/db/bin/
+```
+
+- **`download_refseq.sh`** — Downloads RefSeq nucleotide sequences and builds BLAST databases.  
+- **`download_ensemble.sh`** — Downloads and formats Ensembl human, mouse, and rat cDNA datasets for BLAST.
+
+Each script automatically:
+- Retrieves data via FTP from NCBI or Ensembl.
+- Normalizes FASTA headers.
+- Formats BLAST databases using `makeblastdb`.
+- Logs progress to `/home/shaykins/Projects/siRNA/www/logs/ensembl_update.log`.
+
+**Sample command:**
+```bash
+bash /home/shaykins/Projects/siRNA/cgi-bin/db/bin/download_ensemble.sh
+```
+
+---
+
+### **3. `mysqldb/`**
+Contains `.sql` definitions for initializing MySQL databases used by the siRNA application.
+
+To create these databases:
+```bash
+mysql -u your_user -p < /home/shaykins/Projects/siRNA/cgi-bin/mysqldb/sirna.sql
+```
+
+#### Files
+- **`entrez_gene.sql`** — Schema for the `entrez_gene` database (downloadable from NCBI: `ftp://ftp.ncbi.nlm.nih.gov/gene`)
+- **`sirna.sql`** — Schema for the main siRNA user database.
+- **`sirna2.sql`** — Schema for the `xref` database linking gene IDs with transcript isoforms.
+
+---
+
+## ⚙️ Deployment Notes
+
+1. Ensure **fcgiwrap** and **Nginx** are correctly configured to serve CGI scripts.
+2. Make the following directories writable by the web server (`www-data`):
+   ```bash
+   sudo chown -R www-data:www-data /home/shaykins/Projects/siRNA/www/tmp
+   sudo chown -R www-data:www-data /home/shaykins/Projects/siRNA/www/logs
+   ```
+3. Confirm that environment variables in `siRNA_env.pm` point to the current project root.
+4. Verify BLAST executables (e.g., `makeblastdb`) are installed and available in `/usr/bin` or `/usr/local/bin`.
+
+---
+
+## 🧠 Maintenance Tips
+
+- Schedule the Ensembl update script to run weekly:
+  ```bash
+  0 2 * * 0 bash /home/shaykins/Projects/siRNA/cgi-bin/db/bin/download_ensemble.sh
+  ```
+- Clean up temporary session directories older than 1 day:
+  ```bash
+  0 3 * * * find /home/shaykins/Projects/siRNA/www/tmp -type d -mtime +1 -exec rm -rf {} +
+  ```
+- Review the log file regularly for download or BLAST errors:
+  ```bash
+  tail -n 50 /home/shaykins/Projects/siRNA/www/logs/ensembl_update.log
+  ```
+
+---
+
+## 📜 Version & Attribution
+
+**Original Authors:**  
+Whitehead Institute for Biomedical Research — *Bingbing Yuan* (2001–2004)
+
+**Current Adaptation:**  
+*Henry Mwaka* — ResLab / NARO Biotechnology Platform (2025)
+
+**License:**  
+For internal research use only. Redistribution or commercial use is prohibited without written permission.
+
+---

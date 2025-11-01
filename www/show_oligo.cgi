@@ -1,31 +1,28 @@
-#!/usr/local/bin/perl
-
-# ###!/usr/local/bin/perl -w -I/usr/lib/perl5/site_perl/5.26.1/
-
-#################################################################
-# Copyright(c) 2001 Whitehead Institute for Biomedical Research.
-#              All Right Reserve
-#
-# Author:      Bingbing Yuan <siRNA-help@wi.mit.edu>
-# Created:     09/28/2001
-# Updated:     6/28/2004 
-#
-#################################################################
-
-package SiRNA;
-
-my $DEBUG = 0;
-### all files nobody created is xrwxrwxrw
-umask 000;
+#!/usr/bin/perl -w
+# ===============================================================
+# siRNA CGI Script — ResLab 2025 Fixed Header
+# ===============================================================
 
 use strict;
-use CGI;
-use Email::Valid;
-use IO::Handle;
-use CGI qw(:standard :html13);
-use CGI qw(param);
-use Time::Local;
-use LWP::Simple qw(get);
+use warnings;
+
+BEGIN {
+    $ENV{'PATH'} = '/usr/local/bin:/usr/bin:/bin';
+    delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+    $ENV{'LANG'}   = 'en_US.UTF-8';
+    $ENV{'LC_ALL'} = 'en_US.UTF-8';
+}
+
+use FindBin qw($Bin);
+use lib "$Bin";
+use lib "$Bin/lib";
+use lib '/home/shaykins/Projects/siRNA/cgi-bin/lib';
+use lib '/home/shaykins/Projects/siRNA/config';
+use lib '/home/shaykins/Projects/siRNA/www/lib';
+use lib '/home/shaykins/Projects/siRNA/www';
+
+use CGI qw(:standard);
+use CGI::Carp qw(fatalsToBrowser);
 
 use siRNA_env;
 use siRNA_log;

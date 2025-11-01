@@ -1,0 +1,23 @@
+# --- GitHub language and line ending normalization ---
+* text=auto
+*.pl text eol=lf
+*.pm text eol=lf
+*.cgi text eol=lf
+*.php text eol=lf
+*.js text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.md text eol=lf
+
+# Exclude config directory from GitHub linguist analysis
+config/* linguist-vendored
+
+# Mark documentation files
+README.md linguist-documentation
+CHANGELOG.md linguist-documentation
+SECURITY.md linguist-documentation
+TESTING_NOTES.md linguist-documentation
+
+# Treat Perl modules as source code
+*.pm linguist-language=Perl
+*.cgi linguist-language=Perl

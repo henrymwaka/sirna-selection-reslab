@@ -1,32 +1,29 @@
-#!/usr/local/bin/perl
-
-
-# ###! /usr/bin/perl -I/usr/lib/perl5/site_perl/5.6.1/ -I./
-
-#################################################################
-# Copyright(c) 2008 Whitehead Institute for Biomedical Research.
-#              All Right Reserve
-#
-# Author:      Bingbing Yuan <siRNA-help@wi.mit.edu>
-# Created:     05/15/2008
-#
-#################################################################
-
-package SiRNA;
-
+#!/usr/bin/perl -w
+# ===============================================================
+# siRNA CGI Script — ResLab 2025 Fixed Header
+# ===============================================================
 
 use strict;
-use CGI;
-use CGI qw(:standard :html13);
-use CGI qw(param);
-use Database;
+use warnings;
 
+BEGIN {
+    $ENV{'PATH'} = '/usr/local/bin:/usr/bin:/bin';
+    delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+    $ENV{'LANG'}   = 'en_US.UTF-8';
+    $ENV{'LC_ALL'} = 'en_US.UTF-8';
+}
 
-use CGI::Carp qw(fatalsToBrowser set_message);
-    BEGIN {
-        sub handle_errors {
-    	my $msg = shift;
-    	print "<h1>Oh gosh</h1>";
+use FindBin qw($Bin);
+use lib "$Bin";
+use lib "$Bin/lib";
+use lib '/home/shaykins/Projects/siRNA/cgi-bin/lib';
+use lib '/home/shaykins/Projects/siRNA/config';
+use lib '/home/shaykins/Projects/siRNA/www/lib';
+use lib '/home/shaykins/Projects/siRNA/www';
+
+use CGI qw(:standard);
+use CGI::Carp qw(fatalsToBrowser);
+
     	print "Got an error: $msg";
         }
        set_message(\&handle_errors);

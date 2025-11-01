@@ -1,90 +1,93 @@
-#! /usr/local/bin/perl -w
-
-#################################################################
-# Copyright(c) 2001 Whitehead Institute for Biomedical Research.
-#              All Right Reserve
+#!/usr/bin/perl -w
 #
-# Author:      Bingbing Yuan <siRNA-help@wi.mit.edu>
-# Created:     07/20/2001
+# siRNA_log.pm  –  Modernized ResLab Edition (2025)
+# Based on original Whitehead Institute implementation (2001, Bingbing Yuan)
+# Maintained and updated by Henry Mwaka
 #
-#################################################################
+# Provides unified Log::Log4perl interface for all siRNA components.
+# --------------------------------------------------------------------
 
-package SiRNA;
+package siRNA_log;
+use strict;
+use warnings;
+use Log::Log4perl;
+use CGI ();
+use siRNA_env;
 
 umask 000;
 
-use Log::Log4perl; 
-use strict;
-use siRNA_env;
+# --------------------------------------------------------------------
+# Initialize Log4perl
+# --------------------------------------------------------------------
+my $conf_file = $ENV{'SIRNA_LOG_CONF'}
+    || '/home/shaykins/Projects/siRNA/www/siRNA_log.conf';
 
-Log::Log4perl->init("${SiRNA::MyClusterLib}/siRNA_log.conf");
+Log::Log4perl->init($conf_file);
 $Log::Log4perl::caller_depth = 1;
-my $logger = Log::Log4perl->get_logger("SiRNA");
- 
-###################################################################### 
-# The following subroutines provides 5 levels of logging:
-# See: http://log4perl.sourceforge.net/ 
-#
-#    debug   --   very detail information for debugging
-#    info    --   infomational messages
-#    warn    --   warning messages, administrator should be alerted
-#    error   --   error messages, action demanded.
-#    fatal   --   fatal errors, program should exit.
-######################################################################  
 
-sub mydebug {
-    if ($SiRNA::MySessionID) {
-        $logger->debug("[$SiRNA::MySessionID] @_");
+my $logger = Log::Log4perl->get_logger("siRNA");
+
+# --------------------------------------------------------------------
+# Core logging methods (original behaviour preserved)
+# --------------------------------------------------------------------
+sub mydebug { _log('debug', @_) }
+sub myinfo  { _log('info',  @_) }
+sub mywarn  { _log('warn',  @_) }
+sub myerror { _log('error', @_) }
+sub myfatal { _log('fatal', @_) }
+
+# --------------------------------------------------------------------
+# Public modern aliases (preferred in new scripts)
+# --------------------------------------------------------------------
+sub debug { mydebug(@_) }
+sub info  { myinfo(@_)  }
+sub warn  { mywarn(@_)  }
+sub error { myerror(@_) }
+sub fatal { myfatal(@_) }
+
+# --------------------------------------------------------------------
+# Internal helper
+# --------------------------------------------------------------------
+sub _log {
+    my ($level, @msg) = @_;
+    my $session = $SiRNA::MySessionID // $main::MySessionID // '';
+    my $prefix  = $session ? "[$session] " : '';
+    if ($logger->can($level)) {
+        $logger->$level($prefix . join(' ', @msg));
     }
-    else {
-        $logger->debug("[] @_");
+    # For error and fatal, echo to browser if a CGI object is passed
+    if ($level =~ /error|fatal/) {
+        _printToWWW(@msg);
     }
+    exit 1 if $level eq 'fatal';
 }
-sub myinfo {
-    if ($SiRNA::MySessionID) {
-	$logger->info("[$SiRNA::MySessionID] @_");
-    }
-    else {
-	$logger->info("[] @_");
-    }
-}
-sub mywarn {
-    if ($SiRNA::MySessionID) {
-	$logger->warn("[$SiRNA::MySessionID] @_");
-    }
-    else {
-	$logger->warn("[] @_");
-    }
-}
-sub myerror{
-    if ($SiRNA::MySessionID) {
-	$logger->error("[$SiRNA::MySessionID] @_");
-    }
-    else {
-	$logger->error("[] @_"); 
-    }
-    printToWWW(@_);
-}
-sub myfatal {
-    if ($SiRNA::MySessionID) {
-	$logger->fatal("[$SiRNA::MySessionID] @_");
-    }
-    else {
-	$logger->fatal("[] @_"); 
-    }
-    printToWWW(@_);	
-    exit 1;
-}
-sub printToWWW {
-    my( $reason, $query ) = @_;
-    if (ref $query eq "CGI") {
-        print $query->header("text/html");
-        print $query->start_html('siRNA Error');
-        print
-            $query->h1( "Error:" ),
-            $query->p( $query->i( $reason ) ),
-            $query->end_html();
+
+# --------------------------------------------------------------------
+# Minimal HTML error output for web users
+# --------------------------------------------------------------------
+sub _printToWWW {
+    my ($reason, $query) = @_;
+    if (ref $query eq 'CGI') {
+        print $query->header('text/html; charset=UTF-8');
+        print $query->start_html('siRNA Error'),
+              $query->h1('Error:'),
+              $query->p($query->i($reason)),
+              $query->end_html;
     }
 }
 
 1;
+__END__
+
+=head1 NAME
+siRNA_log – unified logging wrapper for the ResLab siRNA system
+
+=head1 SYNOPSIS
+  use siRNA_log;
+  siRNA_log::info("Starting job $id");
+  siRNA_log::error("Invalid input");
+
+=head1 DESCRIPTION
+Wrapper around Log::Log4perl preserving backward-compatibility
+with the Whitehead version while exposing modern aliases (info, warn, error).
+=cut

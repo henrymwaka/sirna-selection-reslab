@@ -1,116 +1,101 @@
-#!/bin/sh
+#!/bin/bash
 # ===============================================================
-# Sanjeev Pillai
-# download and update ensembl blast databases
-# ================================================================
+# Whitehead Institute siRNA Program - Ensembl BLAST DB Updater
+# Maintainer: Henry Mwaka <admin@reslab.dev>
+# Location:   /home/shaykins/Projects/siRNA/cgi-bin/db/bin
+# Purpose:    Download and update Ensembl FASTA files for BLAST
+# Updated:    30-Oct-2025
+# ===============================================================
 
-# change the path below
+set -euo pipefail
 
-set echo on
-DOWNLOAD=/pathToDownload
-DATA=/pathToData
-BIN=/cgi-bin/db/bin
-LOG=/pathTolog
-LOGFILE=$LOG/ensembl.log
-CRONDIR=/pathToCronjobs
+# ==== CONFIGURATION ============================================================
+PROJECT_ROOT="/home/shaykins/Projects/siRNA"
+DOWNLOAD="${PROJECT_ROOT}/cgi-bin/db/downloads"
+DATA="${PROJECT_ROOT}/cgi-bin/db"
+BIN="${PROJECT_ROOT}/cgi-bin/db/bin"
+LOGDIR="${PROJECT_ROOT}/www/logs"
+LOGFILE="${LOGDIR}/ensembl_update.log"
+ADMIN_EMAIL="admin@reslab.dev"
 
+# ==== INITIALIZATION ===========================================================
+mkdir -p "${DOWNLOAD}" "${DATA}" "${LOGDIR}"
+rm -f "${LOGFILE}"
+touch "${LOGFILE}"
 
-rm -f $LOGFILE
+cd "${DOWNLOAD}"
 
-cd ${DOWNLOAD}
-# rm -rf *      ! DON'T DO THIS!  If $DOWNLOAD doesn't exist, it causes lots of problems!
+echo "===== $(date) Starting Ensembl database update =====" | tee -a "${LOGFILE}"
 
-echo "Getting databases from ftp.ensembl.org ..." > $LOGFILE
+# ==== FTP SOURCES ==============================================================
+declare -A ENSEMBL_URLS=(
+  ["human"]="ftp://ftp.ensembl.org/pub/current_fasta/homo_sapiens/cdna/Homo_sapiens.GRC*.cdna.all.fa.gz"
+  ["mouse"]="ftp://ftp.ensembl.org/pub/current_fasta/mus_musculus/cdna/Mus_musculus.GRC*.cdna.all.fa.gz"
+  ["rat"]="ftp://ftp.ensembl.org/pub/current_fasta/rattus_norvegicus/cdna/Rattus_norvegicus.*.cdna.all.fa.gz"
+)
 
-# File names changed at ensembl FIL 09/03/09
-wget --passive-ftp 'ftp://ftp.ensembl.org/pub/current_fasta/homo_sapiens/cdna/Homo_sapiens.GRC*.cdna.all.fa.gz' -O Homo_sapiens.Ensembl.cdna.fa.gz -a $LOGFILE 2>&1
-if [ "$?" -ne 0 ]
-then
-        mail -s "human ensembl cdna - error downloading data" yourAssistant@domain.com < $LOGFILE
-        exit 1
-fi
-echo "downloaded human dna" >> $LOGFILE
+# ==== DOWNLOAD SEQUENCES =======================================================
+for species in "${!ENSEMBL_URLS[@]}"; do
+  echo "Downloading ${species} cDNA from Ensembl..." | tee -a "${LOGFILE}"
+  wget --passive-ftp -nv "${ENSEMBL_URLS[$species]}" \
+    -O "${species}.Ensembl.cdna.fa.gz" -a "${LOGFILE}" || {
+      echo "❌ Download failed for ${species}" | tee -a "${LOGFILE}"
+      mail -s "Ensembl ${species} download error" "${ADMIN_EMAIL}" < "${LOGFILE}"
+      exit 1
+  }
+  echo "✅ Downloaded ${species}.Ensembl.cdna.fa.gz" | tee -a "${LOGFILE}"
+  gunzip -f "${species}.Ensembl.cdna.fa.gz"
+done
 
+# ==== VERIFY DOWNLOADS ========================================================
+echo "Verifying downloaded files..." | tee -a "${LOGFILE}"
+ls -lh *.fa | tee -a "${LOGFILE}"
 
-wget --passive-ftp 'ftp://ftp.ensembl.org/pub/current_fasta/mus_musculus/cdna/Mus_musculus.GRC*.cdna.all.fa.gz' -O Mus_musculus.Ensembl.cdna.fa.gz  >> $LOGFILE 2>&1
-if [ "$?" -ne 0 ]
-then
-        mail -s "mouse ensembl cdna - error downloading data" yourAssistant@domain.com < $LOGFILE
-        exit 1
-fi
-echo "downloaded mouse dna" >> $LOGFILE
+# ==== ADD ENSEMBL PREFIX AND DESCRIPTIONS =====================================
+echo "Processing FASTA headers and annotations..." | tee -a "${LOGFILE}"
 
+for species in human mouse rat; do
+  input="${species}.Ensembl.cdna.fa"
+  output="ensembl_${species}.na"
 
-wget --passive-ftp 'ftp://ftp.ensembl.org/pub/current_fasta/rattus_norvegicus/cdna/Rattus_norvegicus.*.cdna.all.fa.gz' -O Rattus_norvegicus.Ensembl.cdna.fa.gz >> $LOGFILE 2>&1
-if [ "$?" -ne 0 ]
-then
-        mail -s "rat ensembl cdna - error downloading data" yourAssistant@domain.com < $LOGFILE
-        exit 1
-fi
-echo "downloaded rat dna" >> $LOGFILE
+  "${BIN}/change_fasta_header.pl" "${input}" gnl ensembl > "${output}"
+  "${BIN}/add_ensembl_desc.pl" "${output}" "${species}" transcript > "${output}.tmp"
+  mv -f "${output}.tmp" "${output}"
+done
 
+# ==== FORMAT FOR BLAST ========================================================
+echo "Formatting Ensembl databases for BLAST..." | tee -a "${LOGFILE}"
 
+TODAY=$(date +"%Y-%m-%d")
+MAKEBLASTDB=$(command -v makeblastdb || echo "/usr/local/bin/makeblastdb")
 
-gunzip Homo_sapiens.Ensembl.cdna.fa.gz
-gunzip Mus_musculus.Ensembl.cdna.fa.gz
-gunzip Rattus_norvegicus.Ensembl.cdna.fa.gz
+for species in human mouse rat; do
+  db_file="ensembl_${species}.na"
+  "${MAKEBLASTDB}" -dbtype 'nucl' \
+    -title "${species} ensembl.na ${TODAY}" \
+    -parse_seqids \
+    -in "${db_file}" \
+    -out "${db_file}" >> "${LOGFILE}" 2>&1 || {
+      mail -s "BLAST DB formatting error for ${species}" "${ADMIN_EMAIL}" < "${LOGFILE}"
+      exit 1
+  }
+done
 
+# ==== DEPLOYMENT ==============================================================
+echo "Deploying formatted BLAST databases..." | tee -a "${LOGFILE}"
 
-echo "Recently downloaded databases..." >> $LOGFILE
-ls -ltr |tail >> $LOGFILE
+# Copy to permanent db folder
+rsync -avz "${DOWNLOAD}/" "${PROJECT_ROOT}/cgi-bin/db/" >> "${LOGFILE}" 2>&1
 
-if test -s Homo_sapiens.Ensembl.pep.fa -a -s Homo_sapiens.Ensembl.cdna.fa -a -s Mus_musculus.Ensembl.cdna.fa -a -s Mus_musculus.Ensembl.pep.fa -a -s Rattus_norvegicus.Ensembl.cdna.fa -a -s Rattus_norvegicus.Ensembl.pep.fa
-then
+# Move formatted database files
+for species in human mouse rat; do
+  mv -f ensembl_${species}.na* "${DATA}/"
+done
 
-echo "adding the gnl|ensembl to each description line ..." >> $LOGFILE
-${BIN}/change_fasta_header.pl Homo_sapiens.Ensembl.cdna.fa gnl ensembl      >| ensembl_human.na
-${BIN}/change_fasta_header.pl Mus_musculus.Ensembl.cdna.fa gnl ensembl      >| ensembl_mouse.na
-${BIN}/change_fasta_header.pl Rattus_norvegicus.Ensembl.cdna.fa gnl ensembl  >| ensembl_rat.na
+# ==== CLEANUP ================================================================
+echo "Cleaning up temporary files..." | tee -a "${LOGFILE}"
+rm -f *.fa *.gz || true
 
-
-echo "add functional description to each transcript's description" >> $LOGFILE
-${BIN}/add_ensembl_desc.pl ensembl_human.na human transcript > human_na.tmp
-${BIN}/add_ensembl_desc.pl ensembl_mouse.na mouse transcript > mouse_na.tmp
-${BIN}/add_ensembl_desc.pl ensembl_rat.na rat transcript > rat_na.tmp
-
-
-mv -f human_na.tmp ensembl_human.na
-mv -f mouse_na.tmp ensembl_mouse.na
-mv -f rat_na.tmp ensembl_rat.na
-
-
-echo "remove downloaded files in the download directory..." >> $LOGFILE
-rm -f Homo_sapiens.Ensembl*.cdna.fa*
-rm -f Mus_musculus.Ensembl*.cdna.fa*
-rm -f Rattus_norvegicus.Ensembl*.cdna.fa*
-
-echo "formatting the database for blast ..." >> $LOGFILE
-
-set today = `date`
-/usr/local/bin/makeblastdb -dbtype 'nucl' -title "human ensembl.na $today" -parse_seqids -in ensembl_human.na -out ensembl_human.na >> $LOGFILE 2>&1
-/usr/local/bin/makeblastdb -dbtype 'nucl' -title "mouse ensembl.na $today" -parse_seqids -in ensembl_mouse.na -out ensembl_mouse.na >> $LOGFILE 2>&1
-/usr/local/bin/makeblastdb -dbtype 'nucl' -title "rat ensembl.na $today" -parse_seqids -in ensembl_rat.na -out ensembl_rat.na >> $LOGFILE 2>&1
-
-
-else
-mail -s "ensembl file creation update error " yourAssistant@domain.com < /dev/null
-exit 1
-fi
-
-if test -s ensembl_human.na.nhr  -a -s ensembl_mouse.na.nhr  -a -s ensembl_rat.na.nhr 
-then
-
-    echo "formatted databases: " >> $LOGFILE
-    ls -ltr
-
-    rsync -avz $DOWNLOAD/* /cgi-bin/siRNAext/db/ >> $LOGFILE
-
-    echo "moving formatted files into the data directory..." >> $LOGFILE
-
-    mv -f ensembl_human.na* ${DATA}/
-    mv -f ensembl_mouse.na* ${DATA}/
-    mv -f ensembl_rat.na* ${DATA}/
-
-else
-mail -s "ensembl update error " yourAssistant@domain.com < /dev/null
-fi
+echo "===== $(date) Ensembl update completed successfully =====" | tee -a "${LOGFILE}"
+mail -s "✅ Ensembl database update completed successfully" "${ADMIN_EMAIL}" < "${LOGFILE}"
+exit 0

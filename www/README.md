@@ -1,96 +1,159 @@
-# www directory from siRNA selection program (Whitehead Institute)
+# siRNA Selection Program — `www` Directory
 
-### Make /www/siRNAext directory, and copy all files below it.
+This directory hosts the web front-end of the siRNA Selection Program, originally developed at the Whitehead Institute for Biomedical Research.
+It contains all PHP, CGI, JavaScript, and Perl interface components that interact with the back-end logic located under `cgi-bin/lib`.
 
-### Selected contents that may need configuration:
+---
 
-siRNA_env.pm:
+## 📁 Project Structure
 
-siRNA_log.conf:
+```
+/home/shaykins/Projects/siRNA/
+├── www/                # Web root (PHP, CGI, JS, assets)
+│   ├── lib/            # Front-end Perl modules
+│   ├── tmp/            # Temporary session directories (auto-created)
+│   ├── logs/           # Log files (error, debug, siRNA.log)
+│   └── *.cgi, *.php    # Application endpoints
+└── cgi-bin/lib/        # Core Perl libraries and analysis scripts
+```
 
-	log4j.appender.FILE.filename=/var/www/siRNAext/tmp/siRNA.log
+---
 
-post_sirna.cgi:
+## ⚙️ Configuration Overview
 
-	#!/usr/local/bin/perl -w -I./  -I/cgi-bin/siRNAext/lib/
+### 1. Environment File
 
-   
-**Change mysql login (mysqlHost, mysqlLogin, mysqlPassword) in**
+**File:** `cgi-bin/lib/siRNA_env.pm`
+Update absolute paths to match your local project root:
 
-  authenticate.php
-  
-  home.php
-  
-  register.php
-  
-  Check.pm
-  
-  Database.pm
-  
-  
-### Change admin email in these files: ###
- 
-Check.pm
+```perl
+$MyClusterLDLib = "/home/shaykins/Projects/siRNA/cgi-bin/lib";
+$MyBlastDataDir = "/home/shaykins/Projects/siRNA/cgi-bin/db";
+*Home           = "/home/shaykins/Projects/siRNA/www/tmp";
+*MyClusterHome  = "/home/shaykins/Projects/siRNA/www/tmp";
+*MyHomePage     = "home.php";
+```
 
-	From: admin\@domain.com
-	
-	To: admin\@domain.com
-	
-	Reply-To: admin\@domain.com
-	
+### 2. Logging Configuration
 
-siRNA.cgi: 
+**File:** `www/siRNA_log.conf`
 
-	admin\@domain.com
-	
-GenbankAcc.pm:
+```ini
+log4j.appender.FILE.filename=/home/shaykins/Projects/siRNA/www/logs/siRNA.log
+```
 
-    my $esearch = "$utils/efetch.fcgi?db=nucleotide&id=$acc&rettype=fasta&email=admin\@domain.com";
-    
-GenbankGI.pm:
+Ensure the log directory exists and is writable:
 
-      "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=$gi&rettype=fasta&retmode=text&email=admin\@domain.com";
-      
-siRNA_util.pm:
+```bash
+sudo -u www-data mkdir -p /home/shaykins/Projects/siRNA/www/logs
+sudo chown -R www-data:www-data /home/shaykins/Projects/siRNA/www/logs
+```
 
-	please contact <a href=\"mailto:admin\@domain.com\">siRNA-help</a> for help
+### 3. Database Credentials
 
+Update MySQL credentials in the following files:
+
+```
+authenticate.php
+home.php
 register.php
+Check.pm
+Database.pm
+```
 
-	please contact admin@domain.com
+Each should reference your valid database host, user, and password.
 
-	Reply-To: admin@domain.com
+### 4. Administrator Email Address
 
+Replace all placeholder emails (`admin@domain.com`) with your actual admin contact in:
 
-### Make symbolic links:
+```
+Check.pm
+siRNA.cgi
+GenbankAcc.pm
+GenbankGI.pm
+siRNA_util.pm
+register.php
+```
 
+Example:
 
-**Link to /cgi-bin/ folders:**
+```perl
+From: admin@reslab.dev
+Reply-To: admin@reslab.dev
+```
 
-    ln -s /cgi-bin/siRNAext/lib/Attribute
+---
 
-    ln -s /cgi-bin/siRNAext/lib/Email/
+## 🔗 Symbolic Links
 
-    ln -s /cgi-bin/siRNAext/lib/Database.pm
+Ensure these symlinks are created so the web application can access shared library modules.
 
-    ln -s /cgi-bin/siRNAext/lib/File
+**Link library folders:**
 
-    ln -s /cgi-bin/siRNAext/lib/JobStatus.pm
+```bash
+ln -s /home/shaykins/Projects/siRNA/cgi-bin/lib/Attribute
+ln -s /home/shaykins/Projects/siRNA/cgi-bin/lib/Email
+ln -s /home/shaykins/Projects/siRNA/cgi-bin/lib/Database.pm
+ln -s /home/shaykins/Projects/siRNA/cgi-bin/lib/File
+ln -s /home/shaykins/Projects/siRNA/cgi-bin/lib/JobStatus.pm
+ln -s /home/shaykins/Projects/siRNA/cgi-bin/lib/Log
+ln -s /home/shaykins/Projects/siRNA/cgi-bin/lib/Mail
+ln -s /home/shaykins/Projects/siRNA/cgi-bin/lib/Params
+ln -s /home/shaykins/Projects/siRNA/cgi-bin/lib/Sort.pm
+```
 
-    ln -s /cgi-bin/siRNAext/lib/Log
+**Link entry pages:**
 
-    ln -s /cgi-bin/siRNAext/lib/Mail
+```bash
+ln -s home.php index.php
+```
 
-    ln -s /cgi-bin/siRNAext/lib/Params
+---
 
-    ln -s /cgi-bin/siRNAext/lib/Sort.pm
+## 🧩 Temporary Directory
 
-**Link home.php with index.php**
+Create the working directory for user sessions and BLAST outputs:
 
-    ln -s  home.php index.php
+```bash
+mkdir -p /home/shaykins/Projects/siRNA/www/tmp
+chmod 775 /home/shaykins/Projects/siRNA/www/tmp
+chown www-data:www-data /home/shaykins/Projects/siRNA/www/tmp
+```
 
+Each new search session will automatically create a subfolder under this path:
 
-### Create tmp directory to store files for each search
+```
+tmp/S_<session_id>--/
+```
 
-    mkdir tmp
+---
 
+## 🤮 Testing Your Setup
+
+After completing configuration:
+
+```bash
+sudo systemctl restart fcgiwrap
+curl -vk "https://sirna.reslab.dev/siRNA.cgi?tasto=1001"
+```
+
+If correctly configured, you should no longer see redirects for missing files and the application will advance to the next stage.
+
+---
+
+### ✅ Quick Checklist
+
+| Component       | Correct Path                                       |
+| --------------- | -------------------------------------------------- |
+| Root web folder | `/home/shaykins/Projects/siRNA/www`                |
+| CGI libraries   | `/home/shaykins/Projects/siRNA/cgi-bin/lib`        |
+| Temporary files | `/home/shaykins/Projects/siRNA/www/tmp`            |
+| Log files       | `/home/shaykins/Projects/siRNA/www/logs/siRNA.log` |
+| Entry point     | `home.php` (symlinked as `index.php`)              |
+
+---
+
+**Maintainer:**
+Henry Mwaka — [admin@reslab.dev](mailto:admin@reslab.dev)
+Whitehead-based siRNA Selection Program (Customized Deployment)

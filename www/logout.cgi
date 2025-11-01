@@ -1,31 +1,28 @@
-#!/usr/local/bin/perl -w -I./ 
+#!/usr/bin/perl -w
+# ===============================================================
+# siRNA CGI Script — ResLab 2025 Fixed Header
+# ===============================================================
 
-#################################################################
-# Copyright(c) 2001 Whitehead Institute for Biomedical Research.
-#              All Right Reserve
-#
-# Created:     11/13/2002
-#
-#################################################################
+use strict;
+use warnings;
 
-package SiRNA;
-use Check;
-use CGI;
-use siRNA_env;
-use siRNA_util;
+BEGIN {
+    $ENV{'PATH'} = '/usr/local/bin:/usr/bin:/bin';
+    delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+    $ENV{'LANG'}   = 'en_US.UTF-8';
+    $ENV{'LC_ALL'} = 'en_US.UTF-8';
+}
 
-our $SiRNAUrlHome;
+use FindBin qw($Bin);
+use lib "$Bin";
+use lib "$Bin/lib";
+use lib '/home/shaykins/Projects/siRNA/cgi-bin/lib';
+use lib '/home/shaykins/Projects/siRNA/config';
+use lib '/home/shaykins/Projects/siRNA/www/lib';
+use lib '/home/shaykins/Projects/siRNA/www';
 
-### remove rid row from logins table ###
-my $query = new CGI;
-print $query->header("text/html");
-print $query->start_html;
-
-our $UserSessionID = $query->param("tasto");
-my $check = Check->new;
-my $dbh = $check->dbh_connection();
-$check->deleteRid($dbh, $UserSessionID);
-$check->dbh_disconnect($dbh);
+use CGI qw(:standard);
+use CGI::Carp qw(fatalsToBrowser);
 
 print <<EOF;
 <pre>

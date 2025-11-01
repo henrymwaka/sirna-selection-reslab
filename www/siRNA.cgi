@@ -1,303 +1,155 @@
-#!/usr/bin/perl
-use lib '/home/shaykins/Projects/siRNA/www';
-
-# ###!/usr/local/bin/perl -w -I./
-
-#################################################################
-# Copyright(c) 2001 Whitehead Institute for Biomedical Research.
-#              All Right Reserve
-#
-# Author:      Bingbing Yuan <siRNA-help@wi.mit.edu>
-# Created:     09/28/2001
-#
-#################################################################
-
-package SiRNA;
+#!/usr/bin/perl -w
+# ===============================================================
+# siRNA CGI Script — ResLab 2025 Fixed Header
+# ===============================================================
 
 use strict;
-use CGI;
+use warnings;
 
-use IO::Handle;
-use CGI qw(:standard :html13);
-#use CGI qw(param);
-use integer;
+BEGIN {
+    $ENV{'PATH'} = '/usr/local/bin:/usr/bin:/bin';
+    delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+    $ENV{'LANG'}   = 'en_US.UTF-8';
+    $ENV{'LC_ALL'} = 'en_US.UTF-8';
+}
 
-use siRNA_env;
-use siRNA_log;
+use FindBin qw($Bin);
+use lib "$Bin";
+use lib "$Bin/lib";
+use lib '/home/shaykins/Projects/siRNA/cgi-bin/lib';
+use lib '/home/shaykins/Projects/siRNA/config';
+use lib '/home/shaykins/Projects/siRNA/www/lib';
+use lib '/home/shaykins/Projects/siRNA/www';
+
+use CGI qw(:standard);
+use CGI::Carp qw(fatalsToBrowser);
+
 use siRNA_util;
-use siRNA_util_for_step2;
+use siRNA_env;
 use Check;
 use GetSession;
-use Time::Local;
-use Email::Valid;
-use JobStatus;
 
+# --------------------------------------------------------------------
+# Globals
+# --------------------------------------------------------------------
+my $query = CGI->new;
+print $query->header('text/html; charset=UTF-8');
 
+our $PROJECT_ROOT = '/home/shaykins/Projects/siRNA';
+our $TMP_DIR      = "$PROJECT_ROOT/www/tmp";
+our $LOG_CONF     = "$PROJECT_ROOT/www/siRNA_log.conf";
+our $LOG_FILE     = "$PROJECT_ROOT/www/logs/siRNA.log";
 
-my $query = new CGI;
-my $CMD = "";
-#print $query->header("text/html");
-
-our ($UserSessionID, $MyDataTxt, $MySessionIDSub, $MyDataTxt2, $MyDataFasta);
-our ($PERL, $MySessionID, $DateDir, $MyHomePage);
-our ($MyCheckMySQL, $MySiRNAPid, $MyClusterLib, $MyUserLinkUrl, $MyErrorLog, $MyArgvs, $MyBsubDir);
-
-# =========================
-# validate session
-# get Email afrom database
-# =========================
-$UserSessionID = $query->param("tasto");
-my $check = Check->new;
-if ($MyCheckMySQL) {
-    my $dbh = $check->dbh_connection();
-    my $user_auth_id = $check->checkUserSession($dbh, $UserSessionID);
-    my $login_page = "$SiRNA::MyHomePage";
-
-    if (! $user_auth_id ) {
-	print $query->header("text/html");
-	$check->redirectToLoginPage("index.php");
-	exit;
-    }
-    $check->dbh_disconnect($dbh);
+# Ensure tmp directory exists
+unless (-d $TMP_DIR) {
+    mkdir $TMP_DIR, 0775 or warn "Could not create $TMP_DIR: $!";
 }
 
-my $general_www_error = "Error: there is a problem processing your request, please contact <a href=\"mailto:admin\@domain.com\">siRNA-help</a> for help.<br /> Detail:message";
+$ENV{'SIRNA_LOG_CONF'} = $LOG_CONF;
 
-### check mysession ###
-$MySessionID = getSessionIDFromCGI($query);
+# --------------------------------------------------------------------
+# Retrieve session ID
+# --------------------------------------------------------------------
+my $incoming_sid = $query->param('MySessionID') || $query->param('tasto') || '';
 
-### validate mysession and initialize constants ###
-validateSession();
-initialize();
-
-### get a new sessionID for txt2, html, etc  ###
-my $txt2_dir = $DateDir;
-mydebug ("txt2_dir=", $txt2_dir, "\n");
-$MySessionIDSub = get_session_from_txt2($MySessionID, $txt2_dir);
-mydebug ("MySessionIDSub=", $MySessionIDSub, "\n");
-
-### initialize step2 constants ###
-initializeStep2();
-
-mydebug("MyDataTxt2=$MyDataTxt2");
-mydebug( "argument file=$MyArgvs\n" );
-
-### redirected to user input page if files are moved ###
-if ( (! -e $MyDataTxt) || (! -e $MyDataFasta) ) {
-    print $query->header("text/html");
-    my $usr_input_page = $MyHomePage;
-    mydebug (" 1=$MyDataTxt, 2=$MyDataFasta", "\n");
-    my $check = Check->new;
-    $check->redirectToLoginPage($usr_input_page);
+if (!$incoming_sid || $incoming_sid !~ /^S_\d+_[0-9a-f]+$/i) {
+    print "<html><body><b>Error:</b> Invalid or missing session ID.<br>";
+    print "Please <a href='home.php'>log in again</a>.</body></html>";
     exit;
 }
 
-# save parameters to txt2 file ###
-my %vparam = %{ fileToHash($MyDataTxt) };
-my @oligos = $query->param("oligo");
-$vparam{"oligo"}    = [@oligos];
-$vparam{"DATABASE"} = $query->param("DATABASE");
-$vparam{"VIA"}      = $query->param("VIA");
-$vparam{"BLAST"}    = $query->param("BLAST");
-
-# For WU BLAST, result can only sent through email
-if ($query->param("BLAST") =~ /WU/) {
-    $vparam{"VIA"} = "email";
-}
-$vparam{"EMAIL"}    = $query->param("EMAIL") if ($vparam{"VIA"} eq "email");
-$vparam{"EMAIL"}    = "" if ( $vparam{"VIA"} ne "email"); 
-$vparam{"SPECIES"}  = $query->param("SPECIES");
-
-
-hashToFile($MyDataTxt2, \%vparam);
-
-### calculating the when teh siRNA program is going to end ###
-my $time_to_finish = int((sqrt($#oligos+1))*2 +0.5) + 3;
-my $current_time = timelocal(localtime); 
-
-# ==========================================================================
-#                       check the user input error
-# ==========================================================================
-my $error = 0;
-my $htmlError = "";
-
-if ( $#oligos < 0) {
-    $htmlError .= "There are no oligos choosed to blast." . $query->br;
-    $error = 1;
+my $session_dir = "$TMP_DIR/$incoming_sid";
+unless (-d $session_dir) {
+    mkdir $session_dir, 0775 or warn "Could not create session dir: $!";
 }
 
-# ===============                                                                                                       
-# validate email                                                                                                        
-# ===============                                                    
-if ($vparam{"VIA"} eq "email") {
-    $vparam{"EMAIL"} =~ s/\s+//g; 
-    if ( (! $vparam{"EMAIL"} ) || (! Email::Valid->address($vparam{"EMAIL"}))) { 
-	$htmlError .= "Please input correct e-mail address." . $query->br; 
-	$error = 4; 
-    }
-} 
+# --------------------------------------------------------------------
+# Start HTML output
+# --------------------------------------------------------------------
+print <<"HTML";
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>siRNA Selection Program</title>
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #f5f7fa; color: #222; margin: 0; padding: 0; }
+    .container { margin: 30px auto; width: 80%; background: #fff; padding: 25px; border-radius: 8px;
+                 box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    button { padding: 10px 20px; background: #005fa3; color: #fff; border: none;
+             border-radius: 4px; cursor: pointer; }
+    button:hover { background: #0076cc; }
+    textarea { width: 100%; font-family: monospace; font-size: 14px; }
+    footer { margin-top: 30px; text-align: center; color: #777; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <center><img src="keep/header_wi_01.jpg" alt="Header"></center>
+  <div class="container">
+HTML
 
-# =====================================
-# no more than 100 siRNAs for all BLAST
-# =====================================
-#if ( $vparam{"BLAST"} =~ /WU/ &&
-#     $#oligos >100 ) {
-if ( $#oligos >100 ) {
-    $htmlError .= 'The upper limit for the number of siRNAs candidates per request is 100.<br /> If you want to BLAST more oligos, please contact with admin\@domain.com';
-    $error = 5;
+# --------------------------------------------------------------------
+# Show Input Form
+# --------------------------------------------------------------------
+try {
+    print "<h2>Enter Target Sequence</h2>";
+    print "<p>Paste the target gene or transcript sequence (FASTA format or plain text):</p>";
+
+    print $query->start_form(
+        -method   => 'POST',
+        -action   => 'post_sirna.cgi',
+        -enctype  => 'multipart/form-data',
+        -name     => 'siRNAInputForm'
+    );
+
+    print "<textarea name='SEQUENCE' rows='12' cols='80'></textarea><br><br>";
+
+    print "<b>Species:</b> ",
+          $query->popup_menu(
+              -name    => 'SPECIES',
+              -values  => ['Human','Mouse','Rat'],
+              -default => 'Human'
+          ), "<br><br>";
+
+    print "<b>Database:</b> ",
+          $query->popup_menu(
+              -name    => 'DATABASE',
+              -values  => ['RefSeq','UniGene','Ensembl'],
+              -default => 'RefSeq'
+          ), "<br><br>";
+
+    print "<b>BLAST Engine:</b> ",
+          $query->popup_menu(
+              -name    => 'BLAST',
+              -values  => ['WU-BLAST','NCBI-BLAST'],
+              -default => 'NCBI-BLAST'
+          ), "<br><br>";
+
+    print qq{
+        <input type="hidden" name="MySessionID" value="$incoming_sid">
+        <input type="hidden" name="action" value="PROCESS">
+        <button type="submit">Submit Sequence</button>
+    };
+    print $query->end_form;
+
+    print qq{
+        <p style="color:#555;font-size:13px;">
+          After submission, the program will identify optimal siRNA candidates
+          and perform BLAST filtering.
+        </p>
+    };
 }
-    
-if ($error) {
-    myfatal($htmlError, $query);
-}
+catch {
+    print "<b>Runtime error while generating form:</b><br>$_<br>";
+};
 
-mydebug( "argument file=$MyArgvs\n" );
+# --------------------------------------------------------------------
+# Footer
+# --------------------------------------------------------------------
+print <<"HTML";
+  </div>
+  <footer><hr><i>siRNA Selection Program — ResLab Edition, 2025</i></footer>
+</body>
+</html>
+HTML
 
-
-# ===================================
-# save arguments for siRNA_step2.cgi
-# ===================================
-my %tmp_hash = (
-		"MySessionID"    => $MySessionID,
-		"MySessionIDSub" => $MySessionIDSub,
-		"UserSessionID"  => $UserSessionID
-		);
-hashToFile($MyArgvs, \%tmp_hash);
-
-#if ( $vparam{"BLAST"} =~ /NCBI/) {
-#    $CMD = "${MyBsubDir}/jsub \"$PERL $MyClusterLib/siRNA_step2.cgi $MyArgvs\"";
-#}
-#else {
-#    $CMD = "${MyBsubDir}/jsub \"$PERL $MyClusterLib/siRNA_step2.cgi $MyArgvs\"";
-#}
-
-#if ( $vparam{"BLAST"} =~ /NCBI/) {
-#    $CMD = "\"$PERL $MyClusterLib/siRNA_step2.cgi $MyArgvs\"";
-#}
-#else {
-#    $CMD = "\"$PERL $MyClusterLib/siRNA_step2.cgi $MyArgvs\"";
-#}
-
-
-# ===========================================================================
-#                         dual processes
-# ===========================================================================
-my $pid;
-
-### fork a child process to run siRNA_step2.cgi
-if (!defined($pid = fork))
-{
-    myfatal( "$general_www_error : can't fork. <br />", $query );
-}
-elsif ($pid == 0)
-### this is the child process
-{
-    close(STDIN); close(STDOUT); close(STDERR);
-    sleep(5); #pause for 5 sec
-    myinfo( "Forking child process in the background" );
-    $CMD .= "$PERL $MyClusterLib/siRNA_step2.cgi $MyArgvs";
-    myinfo( "Start $CMD" );
-    chdir ${SiRNA::MyClusterLib};
-
-    my $_dir = `pwd`;
-    myinfo( "mydir=$_dir" );
-    myinfo( "cmd=$CMD" );
-    system($CMD); # || die "can't exec $CMD: $!\n";
-    exit;
-}
-else
-{
-    ### this is parent process
- 
-  # check how many web_jobs are running
-  #    my $web_jobs = check_webjobs_queue();
-  my $web_jobs = server_check();
-  
-  print $query->header("text/html");
-  
-  # startform is obsolete replace it with start_form 
-  print $query->start_form(-method   => 'post',
-			  -action   => 'show_result.cgi',
-			  -name     => 'ShowResultForm',
-			  -encoding => 'multipart/form-data'
-			 );
-  
-  printLogoutBar($UserSessionID);
-  
-  print $query->hidden('time_to_finish', $time_to_finish);
-  print $query->hidden('current_time', $current_time);
-  print $query->hidden('tasto', $UserSessionID); 
-  print $query->hidden('my_session_id', $MySessionID); 
-  print $query->hidden('my_session_id_sub', $MySessionIDSub);
-  myinfo("user's email:", $vparam{"EMAIL"});
-  if ($vparam{"EMAIL"}) {
-    print $query->p("Thank you for submitting your request.  " .
-		    "You will receive an email with a link to your " .
-		    "results when the job is complete.\n");
-    if ($web_jobs >= 4) {
-      print $query->p("Currently our server is busy. Please expect delays in getting your results\n");
-    }
-    
-  }
-  else {
-print <<EOF
-<script language="javascript">
-window.setTimeout("document.forms[0].submit()", 10000);
-</script>
-EOF
-;
-	
- if ($query->param("BLAST") =~ /NCBI/i) {
-   print $query->p("The following link to your result may be ready in about <font color='red'>$time_to_finish minutes</font>:\n");
- }
-# ======================================================= #
-# check if there is unfinished job for this ID
-# each subID can go only after done with previous subID
-# ======================================================= #
-if (! job_status()) {
-   print $query->p("It will take longer time than mentioned because another job of yours is running. This job will start once your previous job has finished\n");
- }
-if ($web_jobs) {
-  print $query->p("Currently our server is busy. Please expect delays in getting your results\n");
-}
-
-print $query->p("<a href='javascript:document.forms[0].submit()'><img src=\'keep/animation.gif\'></img></a>");
-
-    }
-  #    `echo $MySessionIDSub $pid >> $MySiRNAPid`;
-    
-  myinfo( "======= END of siRNA.cgi =============\n");
-  exit;   #teminate parent process
-}
-
-### ================================= ###
-###          subroutines              ###
-### ================================= ###
-
-##############################
-# get sub sessionId from txt2
-##############################
-
-sub get_session_from_txt2 {
-    my ($sessionID, $dir) = @_;
-    my @txt2_list = ();
-    my $new_session = "";
-    
-    opendir(BIN, $dir) or myfatal( "$general_www_error : Can't open $dir.<br />", $query );
-      while(defined (my $file = readdir BIN) ) {
-	  push(@txt2_list, $1) if ($file =~ /^$sessionID\_(\d+)\.txt2$/);
-      }
-    closedir(BIN);
-    
-    ### if no txt2 exist ###
-    if ($#txt2_list <0 ) {
-  	$new_session = $sessionID . '_0';
-    }
-    ### if several txt2 files, most recent one +1 ###
-    else {
-  	my @sorted_txt2_list = sort { $a <=> $b } @txt2_list;
-  	$new_session = $sessionID . "_" . ($sorted_txt2_list[-1]+1);
-    }
-    #    print $new_session, "\n";
-    return $new_session;
-}
+exit;

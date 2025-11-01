@@ -1,54 +1,76 @@
-#!/usr/local/bin/perl -w
-
+#!/usr/bin/perl -w
 #################################################################
 # Copyright(c) 2001 Whitehead Institute for Biomedical Research.
-#              All Right Reserve
+#              All Rights Reserved
 #
 # Author:      Bingbing Yuan <siRNA-help@wi.mit.edu>
 # Created:     12/4/2002
-# updated:     6/29/2004
-# This script contains environment constants.
+# Updated:     10/30/2025 by Henry Mwaka
+# Purpose:     Environment constants for siRNA Selection Program
 #################################################################
 
 package SiRNA;
-
 use strict;
 
-# need to be changed at production
-#our $sirnaEnv = "test";
-our $sirnaEnv = "production";
+#===============================================================
+# Environment selector
+#===============================================================
+our $sirnaEnv = "production";     # or "test" if needed
 
 our ($PERL, $Home, $SiRNAUrlHome, $cgiHome, $MyHomePage);
 our ($MyClusterLib, $MyClusterHome, $MyCheckMySQL, $MyForkProcess);
 our ($MyBlastDir, $MyBlastDataDir, $MyBlastDB);
 our ($MyClusterLDLib, $LSRUN_DIR);
 
-my $ApacheHome;
-
-
+#===============================================================
+# MySQL checking
+#===============================================================
 if ($sirnaEnv =~ /test/) {
     $MyCheckMySQL = 0;
-}
-else {
+} else {
     $MyCheckMySQL = 1;
 }
 
+#===============================================================
+# Directory mappings for production installation
+#===============================================================
+if ($sirnaEnv eq "production") {
 
-if ($sirnaEnv eq "test") {
+    my $ProjectRoot = "/home/shaykins/Projects/siRNA";
 
-}    
-elsif ($sirnaEnv eq "production") {
-    $MyClusterLDLib = "/cgi-bin/siRNAext/lib"; 
-    $MyBlastDataDir = "/cgi-bin/siRNAext/db"; 
-    $ApacheHome  = "/var/www"; 
-    *PERL           = \"/usr/local/bin/perl";
-    *Home           = \"/var/www/siRNAext/tmp"; 
-    *SiRNAUrlHome   = \"admin\@domain.com"; # change to yours
-    *cgiHome        = \"admin\@domain.com"; # change to yours
-    *MyHomePage     = \".";
-    *MyClusterLib   = \"/cgi-bin/siRNAext/lib";
-    *MyClusterHome  = \"/var/www/siRNAext"; 
+    *PERL = \"/usr/bin/perl";
+
+    $MyClusterLDLib = "$ProjectRoot/cgi-bin/lib";
+    $MyBlastDataDir = "$ProjectRoot/cgi-bin/db";
+
+    *Home          = \"$ProjectRoot/www/tmp";
+    *MyClusterHome = \"$ProjectRoot/www/tmp";
+    *MyClusterLib  = \"$ProjectRoot/cgi-bin/lib";
+
+    *SiRNAUrlHome  = \"https://sirna.reslab.dev";
+    *cgiHome       = \"https://sirna.reslab.dev";
+    *MyHomePage    = \"home.php";
 }
 
+#===============================================================
+# Optional test environment override
+#===============================================================
+elsif ($sirnaEnv eq "test") {
+
+    my $ProjectRoot = "/home/shaykins/Projects/siRNA_test";
+
+    *PERL = \"/usr/bin/perl";
+
+    $MyClusterLDLib = "$ProjectRoot/cgi-bin/lib";
+    $MyBlastDataDir = "$ProjectRoot/cgi-bin/db";
+
+    *Home          = \"$ProjectRoot/www/tmp";
+    *MyClusterHome = \"$ProjectRoot/www/tmp";
+    *MyClusterLib  = \"$ProjectRoot/cgi-bin/lib";
+
+    *SiRNAUrlHome  = \"http://localhost/siRNA_test";
+    *cgiHome       = \"http://localhost/siRNA_test";
+    *MyHomePage    = \"home.php";
+}
 
 1;
